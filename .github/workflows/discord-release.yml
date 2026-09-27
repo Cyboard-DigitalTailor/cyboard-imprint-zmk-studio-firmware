@@ -50,7 +50,7 @@ jobs:
             on && /^\|/ {exit}
             on {print}' | head -c 3800)
           jq -n --arg name "$name" --arg url "$url" --arg desc "$changes" '{
-            content: "New Imprint firmware is out.",
+            content: "New **Cyboard Studio firmware for wireless Imprints** is out. Wired Imprints are not affected.",
             embeds: [{
               title: $name,
               url: $url,
