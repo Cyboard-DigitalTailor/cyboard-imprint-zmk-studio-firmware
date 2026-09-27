@@ -1,0 +1,44 @@
+# Post each published firmware release to Discord.
+#
+# Needs the repository secret DISCORD_FIRMWARE_WEBHOOK (a Discord channel
+# webhook URL). Without it the job logs a notice and exits cleanly.
+name: Announce release on Discord
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post to Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_FIRMWARE_WEBHOOK }}
+          NAME: ${{ github.event.release.name }}
+          TAG: ${{ github.event.release.tag_name }}
+          URL: ${{ github.event.release.html_url }}
+          BODY: ${{ github.event.release.body }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "::notice::DISCORD_FIRMWARE_WEBHOOK is not set; skipping."
+            exit 0
+          fi
+          # Discord doesn't render tables, so post only the "What's changed"
+          # section (up to the file table), capped to the embed limit.
+          changes=$(printf '%s\n' "$BODY" | tr -d '\r' | awk '
+            /^## What.s changed/ {on=1; next}
+            on && /^\|/ {exit}
+            on {print}')
+          changes=$(printf '%s' "$changes" | head -c 3800)
+          jq -n --arg name "${NAME:-$TAG}" --arg url "$URL" --arg desc "$changes" '{
+            content: "New Imprint firmware is out.",
+            embeds: [{
+              title: $name,
+              url: $url,
+              description: ($desc + "\n\n**Download and install:** " + $url),
+              color: 5793266
+            }]
+          }' > payload.json
+          curl --fail-with-body -sS -H 'Content-Type: application/json' \
+            -d @payload.json "$WEBHOOK"
